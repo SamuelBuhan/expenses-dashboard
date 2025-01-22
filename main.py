@@ -57,13 +57,28 @@ def input_data_tab():
     st.divider()
 
     st.subheader("Create your CSV file")
-    col_name, col_type, col_number = st.columns(3)
+    col_name, col_type, col_number, col_add, col_remove = st.columns([2, 2, 2, 1, 1])
+    name = ""
     with col_name:
-        st.number_input("name")
+        name = st.text_input("name")
     with col_type:
         st.selectbox("type", {"income","expense"})
     with col_number:
         st.number_input(label="value")
+    with col_add:
+        # workaround to align
+        st.write("")
+        st.write("")
+
+        if st.button("Add", type='primary', use_container_width=True):
+            st.write(f"You add {name}")  
+    with col_remove:
+         # workaround to align
+        st.write("") 
+        st.write("")
+
+        if st.button("Remove", type='primary', use_container_width=True):
+            st.write(f"You remove {name}")  
 
 def main_page():
     st.title("Expenses Dashboard")
@@ -73,12 +88,6 @@ def main_page():
         input_data_tab()
     with tab_analysis:
         analysis_tab()
-    
-
-
-
-
-
 
 
 
