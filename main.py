@@ -1,7 +1,14 @@
 import streamlit as st
 import pandas as pd  # read csv, df manipulation
 import plotly.express as px 
+import sqlite3
 
+
+# page setting
+st.set_page_config(page_title="Expenses Dashboard",
+                        layout="wide")
+
+''' Gloabal variable '''
 NORMAL_SIZE = 1
 INPUT_SIZE = 3
 GRAPH_SIZE = 6
@@ -9,16 +16,89 @@ GRAPH_SIZE = 6
 NAME_LABEL = "Name"
 DATE_LABEL = "Date"
 TYPE_LABEL = "Type"
-NUMBER_LABEL = "Number"
+VALUE_LABEL = "Value"
 
-def create_empty_data():
-    st.session_state["main_data"] = {NAME_LABEL:[],
-                                    DATE_LABEL:[],
-                                    TYPE_LABEL: [],
-                                    NUMBER_LABEL: []}
-def process_csv(file):
-    dataframe = pd.read_csv(file)
-    st.write(dataframe)
+SQL_DATABASE = "database.db"
+
+'''
+    SQL
+
+'''
+def create_db():
+    conn = sqlite3.connect(SQL_DATABASE)  
+    cursor = conn.cursor()
+
+    # Create the correct table if it doesn't exist
+    cursor.execute(f'''
+    CREATE TABLE IF NOT EXISTS entries (
+        {NAME_LABEL} TEXT,
+        {DATE_LABEL} TEXT,
+        {TYPE_LABEL} TEXT,
+        {VALUE_LABEL} INTEGER)
+    ''')
+
+    conn.commit()
+    conn.close()
+
+def reset_database():
+    conn = sqlite3.connect(SQL_DATABASE)
+    cursor = conn.cursor()
+
+    # Delete all entries from the table
+    cursor.execute("DELETE FROM entries")
+
+    # Check the number of rows after deletion
+    cursor.execute("SELECT COUNT(*) FROM entries")
+    count = cursor.fetchone()[0]
+    st.write(f"Rows after deletion: {count}")
+    # cursor.execute(f'''
+    # CREATE TABLE entries (
+    #     {NAME_LABEL} TEXT,
+    #     {DATE_LABEL} TEXT,
+    #     {TYPE_LABEL} TEXT,
+    #     {VALUE_LABEL} INTEGER)
+    # ''')
+
+    conn.commit()
+    conn.close()
+
+# Function to connect to database
+def get_db_connection():
+    conn = sqlite3.connect(SQL_DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# Insert data into the database
+def insert_data(name, date, type, number):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    data_to_store = f"{NAME_LABEL}, {DATE_LABEL}, {TYPE_LABEL}, {VALUE_LABEL}"
+    cursor.execute(f"INSERT INTO entries ({data_to_store}) VALUES (?, ?, ?, ?)",
+                    (name, date, type, number))
+    conn.commit()
+    conn.close()
+
+# Retrieve data from database
+def get_data():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM entries")
+    count = cursor.fetchone()[0]  # Get the count value
+
+    # check if any entries
+    if count == 0:
+        conn.close()
+        return None 
+    
+    df = pd.read_sql("SELECT * FROM entries", conn)
+    conn.close()
+    return df
+
+
+'''
+
+
+'''
     
 def display_metrics():
     st.header("Summary expenses")
@@ -49,13 +129,7 @@ def analysis_tab():
             st.write(fig)
 
 def add_dict_expenses(exp_name, exp_date, exp_type, exp_number):
-    st.session_state["main_data"][NAME_LABEL].append(exp_name)
-    st.session_state["main_data"][DATE_LABEL].append(exp_date)
-    st.session_state["main_data"][TYPE_LABEL].append(exp_type)
-    st.session_state["main_data"][NUMBER_LABEL].append(exp_number)
-
-def remove_dict_expenses(exp_name, exp_type, exp_number):
-    create_empty_data()
+    insert_data(exp_name, exp_date, exp_type, exp_number)
 
 @st.cache_data
 def convert_df(df):
@@ -63,22 +137,22 @@ def convert_df(df):
     return df.to_csv().encode("utf-8")
 
 def input_data_tab():
-    print(st.session_state["main_data"])
     st.header("Insert new data")
 
-    st.markdown(''' You can choose to create a dataframe of expenses
-    or to import an existing CSV file. To see the results of these data,
-    click on the tab called "Analysis".         
-    ''')
+    # TODO: implement this feature later
+    # st.markdown(''' You can choose to create a dataframe of expenses
+    # or to import an existing CSV file. To see the results of these data,
+    # click on the tab called "Analysis".         
+    # ''')
 
-    st.subheader("Import your CSV file")
-    uploaded_csv = st.file_uploader("Import CSV files", type="primary", 
-                                    accept_multiple_files=False)
-    if uploaded_csv is not None:
-        process_csv(uploaded_csv)
-    st.divider()
+    # st.subheader("Import your CSV file")
+    # uploaded_csv = st.file_uploader("Import CSV files", type="primary", 
+    #                                 accept_multiple_files=False)
+    # if uploaded_csv is not None:
+    #     process_csv(uploaded_csv)
+    # st.divider()
 
-    st.subheader("Create your CSV file")
+    #st.subheader("Create your CSV file")
     col_name, col_date, col_type, col_number, col_add, col_remove = st.columns([INPUT_SIZE, INPUT_SIZE, INPUT_SIZE,
                                                                     INPUT_SIZE, NORMAL_SIZE, NORMAL_SIZE])
 
@@ -101,7 +175,7 @@ def input_data_tab():
         if st.button("Add", type='primary', use_container_width=True):
             if expense_filled:
                 st.write(f"You add {exp_name}")
-                add_dict_expenses(exp_name, exp_date, exp_type, exp_number)
+                insert_data(exp_name, exp_date, exp_type, exp_number)
             else:
                 st.write("it miss at least one argument for expense")
     with col_remove:
@@ -110,26 +184,25 @@ def input_data_tab():
         st.write("")
 
         if st.button("Remove", type='primary', use_container_width=True):
-            remove_dict_expenses(exp_name, exp_type, exp_number)
+            reset_database()
+            print("Database cleared successfully.")
             st.write(f"You remove {exp_name}")  
 
     st.subheader("View here the expense added:")
-    df_data = pd.DataFrame(st.session_state["main_data"])
-    st.write(df_data)
-    st.download_button(
-        label="Download data as CSV",
-        data=convert_df(df_data),
-        file_name="large_df.csv",
-        mime="text/csv",
-    )
+    df_data = get_data()
+    if df_data is not None:
+        st.dataframe(df_data)
+        st.download_button(
+            label="Download data as CSV",
+            data=convert_df(df_data),
+            file_name="personal_finance.csv",
+            mime="text/csv",
+        )
+    
 
 
 def main_page():
     st.title("Expenses Dashboard")
-
-    # Main dict share through function
-    if "main_data" not in st.session_state:
-        create_empty_data()
 
     tab_input_data, tab_analysis = st.tabs(["Input data", "Analysis"])
     with tab_input_data:
@@ -139,7 +212,6 @@ def main_page():
 
 
 if __name__ == "__main__":
-    st.set_page_config(
-    page_title="Expenses Dashboard",
-    layout="wide")
+    create_db()
     main_page()
+    
