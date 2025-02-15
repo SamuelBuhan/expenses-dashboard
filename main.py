@@ -6,8 +6,16 @@ NORMAL_SIZE = 1
 INPUT_SIZE = 3
 GRAPH_SIZE = 6
 
-main_data = {}
+NAME_LABEL = "Name"
+DATE_LABEL = "Date"
+TYPE_LABEL = "Type"
+NUMBER_LABEL = "Number"
 
+def create_empty_data():
+    st.session_state["main_data"] = {NAME_LABEL:[],
+                                    DATE_LABEL:[],
+                                    TYPE_LABEL: [],
+                                    NUMBER_LABEL: []}
 def process_csv(file):
     dataframe = pd.read_csv(file)
     st.write(dataframe)
@@ -40,7 +48,22 @@ def analysis_tab():
             fig = px.pie(df, values='pop', names='country', title='Population of European continent')
             st.write(fig)
 
+def add_dict_expenses(exp_name, exp_date, exp_type, exp_number):
+    st.session_state["main_data"][NAME_LABEL].append(exp_name)
+    st.session_state["main_data"][DATE_LABEL].append(exp_date)
+    st.session_state["main_data"][TYPE_LABEL].append(exp_type)
+    st.session_state["main_data"][NUMBER_LABEL].append(exp_number)
+
+def remove_dict_expenses(exp_name, exp_type, exp_number):
+    create_empty_data()
+
+@st.cache_data
+def convert_df(df):
+    # IMPORTANT: Cache the conversion to prevent computation on every rerun
+    return df.to_csv().encode("utf-8")
+
 def input_data_tab():
+    print(st.session_state["main_data"])
     st.header("Insert new data")
 
     st.markdown(''' You can choose to create a dataframe of expenses
@@ -53,42 +76,66 @@ def input_data_tab():
                                     accept_multiple_files=False)
     if uploaded_csv is not None:
         process_csv(uploaded_csv)
-
     st.divider()
 
     st.subheader("Create your CSV file")
-    col_name, col_type, col_number, col_add, col_remove = st.columns([2, 2, 2, 1, 1])
-    name = ""
+    col_name, col_date, col_type, col_number, col_add, col_remove = st.columns([INPUT_SIZE, INPUT_SIZE, INPUT_SIZE,
+                                                                    INPUT_SIZE, NORMAL_SIZE, NORMAL_SIZE])
+
     with col_name:
-        name = st.text_input("name")
+        exp_name = st.text_input("name")
+    with col_date:
+        exp_date = st.date_input(
+            "Select date of expense/income",
+            format="MM.DD.YYYY")
     with col_type:
-        st.selectbox("type", {"income","expense"})
+        exp_type = st.selectbox("type", {"income","expense"})
     with col_number:
-        st.number_input(label="value")
+        exp_number = st.number_input(label="value")
     with col_add:
         # workaround to align
         st.write("")
         st.write("")
-
+        
+        expense_filled = (exp_name != "") and (exp_number != "")
         if st.button("Add", type='primary', use_container_width=True):
-            st.write(f"You add {name}")  
+            if expense_filled:
+                st.write(f"You add {exp_name}")
+                add_dict_expenses(exp_name, exp_date, exp_type, exp_number)
+            else:
+                st.write("it miss at least one argument for expense")
     with col_remove:
          # workaround to align
         st.write("") 
         st.write("")
 
         if st.button("Remove", type='primary', use_container_width=True):
-            st.write(f"You remove {name}")  
+            remove_dict_expenses(exp_name, exp_type, exp_number)
+            st.write(f"You remove {exp_name}")  
+
+    st.subheader("View here the expense added:")
+    df_data = pd.DataFrame(st.session_state["main_data"])
+    st.write(df_data)
+    st.download_button(
+        label="Download data as CSV",
+        data=convert_df(df_data),
+        file_name="large_df.csv",
+        mime="text/csv",
+    )
+
 
 def main_page():
     st.title("Expenses Dashboard")
+
+    # Main dict share through function
+    if "main_data" not in st.session_state:
+        create_empty_data()
 
     tab_input_data, tab_analysis = st.tabs(["Input data", "Analysis"])
     with tab_input_data:
         input_data_tab()
     with tab_analysis:
         analysis_tab()
-
 
 
 if __name__ == "__main__":
