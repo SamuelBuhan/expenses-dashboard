@@ -91,21 +91,27 @@ def get_data():
     conn.close()
     return df
 
-
-'''
-
-
-'''
     
 def display_metrics():
     st.header("Summary expenses")
+    df_data = get_data()
+
+    sum_revenue = 0.0
+    sum_expense = 0.0
+    profit = 0.0
+    if df_data is not None:
+        print(df_data)
+        sum_revenue = df_data[df_data["Type"] == "income"]["Value"].sum()
+        sum_expense = df_data[df_data["Type"] == "expense"]["Value"].sum()
+        profit = sum_revenue - sum_expense
+
     col_m1, col_m2, col_m3 = st.columns([NORMAL_SIZE,NORMAL_SIZE,NORMAL_SIZE])
     with col_m1:
-        st.metric("Revenue", 0.0)
+        st.metric("Revenue", f"{sum_revenue}$")
     with col_m2:
-        st.metric("Spent", 0.0)
+        st.metric("Spent", f"{sum_expense}$")
     with col_m3:
-        st.metric("Save", 0.0)
+        st.metric("Profit", f"{profit}$")
 
 def analysis_tab():
     col1, col2 = st.columns([INPUT_SIZE,GRAPH_SIZE])
@@ -115,15 +121,64 @@ def analysis_tab():
     with col2:
         st.header("Charts")
 
-        tab_scatter, tab_pie = st.tabs(["Scatter","Pie chart"])
+        tab_scatter, tab_pie, tab_histogram = st.tabs(["Scatter","Pie chart","Histogram"])
         with tab_scatter:
-            fig = px.scatter(x=[0, 1, 2, 3, 4], y=[0, 1, 4, 9, 16])
-            st.write(fig)
+            df_data = get_data()
+            if df_data is not None:
+                df_filtered = df_data[df_data["Type"] == "expense"]
+                fig = px.line(
+                    df_filtered, x="Date", y="Value", title="Expense Trends",
+                    labels={"Date": "Date", "Value": "Expense ($)"},
+                    color_discrete_sequence=["red"]
+                )
+                fig.update_layout(
+                    yaxis=dict(
+                        title="Expense Amount ($)",
+                        range=[0, df_filtered["Value"].max() * 1.1],  # 10% buffer
+                        showgrid=True,
+                    ),
+                    xaxis_title="Date"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("No data to display.")
         with tab_pie:
-            df = px.data.gapminder().query("year == 2007").query("continent == 'Europe'")
-            df.loc[df['pop'] < 2.e6, 'country'] = 'Other countries' # Represent only large countries
-            fig = px.pie(df, values='pop', names='country', title='Population of European continent')
-            st.write(fig)
+            df_data = get_data()
+            if df_data is not None and not df_data.empty:
+                df_expenses = df_data[df_data["Type"] == "expense"]
+                if not df_expenses.empty:
+                    fig = px.pie(
+                        df_expenses, values="Value", names="Date", title="Expense Breakdown",
+                        color_discrete_sequence=px.colors.sequential.RdBu
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("No expense data for pie chart.")
+            else:
+                st.warning("No data available.")
+
+        with tab_histogram:
+            df_data = get_data()
+            if df_data is not None and not df_data.empty:
+                df_expenses = df_data[df_data["Type"] == "expense"]
+                if not df_expenses.empty:
+                    fig = px.histogram(
+                        df_expenses, x="Date", y="Value", 
+                        title="Histogram of Expenses Over Time",
+                        labels={"Date": "Date", "Value": "Expense ($)"},
+                        nbins=10,  # Adjust number of bins for clarity
+                        color_discrete_sequence=["blue"]
+                    )
+                    fig.update_layout(
+                        yaxis_title="Total Expense ($)",
+                        xaxis_title="Date",
+                        bargap=0.2
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("No expense data for histogram.")
+            else:
+                st.warning("No data available.")
 
 def add_dict_expenses(exp_name, exp_date, exp_type, exp_number):
     insert_data(exp_name, exp_date, exp_type, exp_number)
