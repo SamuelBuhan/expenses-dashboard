@@ -1,11 +1,12 @@
+import os
 import streamlit as st
 import pandas as pd  # read csv, df manipulation
 import plotly.express as px 
-import sqlite3
 from millify import millify
 
 import sql.database_management as dbm
 import input_data.extract_csv_data as csv_data
+import input_data.extract_pdf_data as pdf_data
 
 
 # page setting
@@ -15,6 +16,7 @@ st.set_page_config(page_title="Expenses Dashboard",
 # Gloabal variable
 NORMAL_SIZE = 1
 INPUT_SIZE = 3
+VIEW_SIZE = 6
 GRAPH_SIZE = 6
 
 
@@ -125,10 +127,20 @@ def input_data_tab():
     # ''')
 
     st.subheader("Import an existing CSV file")
-    uploaded_csv = st.file_uploader("Import CSV files", type=["csv"], 
+    uploaded_file = st.file_uploader("Import CSV or PDF files", type=["csv", "pdf"], 
                                     accept_multiple_files=False)
-    if uploaded_csv is not None:
-        csv_data.process_csv(uploaded_csv)
+    if uploaded_file is not None:
+        
+        st.write(f"Uploaded file: {uploaded_file.name}")
+        # check extension
+        _, file_extension = os.path.splitext(uploaded_file.name)
+        if file_extension == ".csv":
+            csv_data.process_csv(uploaded_file)
+        elif file_extension == ".pdf":
+            pdf_data.process_pdf(uploaded_file)
+        else:
+            st.warning(f"File extension {file_extension} not supported yet")
+
     st.divider()
 
     #st.subheader("Create your CSV file")
@@ -159,13 +171,13 @@ def input_data_tab():
                 st.write("it miss at least one argument for expense")
 
     st.subheader("View here the expense added:")
-    col_view_data, col_id_rm,_, _= st.columns([INPUT_SIZE, NORMAL_SIZE, NORMAL_SIZE, 
+    col_view_data, col_id_rm,_, _= st.columns([VIEW_SIZE, NORMAL_SIZE, NORMAL_SIZE, 
                                                   NORMAL_SIZE])
 
     with col_view_data:
         df_data = dbm.get_data()
         if df_data is not None:
-            st.dataframe(df_data, use_container_width=True)
+            st.dataframe(df_data, use_container_width=True, hide_index=True)
             st.download_button(
                 label="Download data as CSV",
                 data=convert_df(df_data),
@@ -180,6 +192,12 @@ def input_data_tab():
             if st.button("Remove", type='primary', use_container_width=False):
                 dbm.remove_entry(entry_to_remove)
                 st.warning(f"Entry {entry_to_remove} removed!")
+                # rerun all script for update
+                st.rerun()
+            
+            if st.button("Remove All", type='primary', use_container_width=False):
+                st.warning(f"All entries removed!!")
+                dbm.reset_database()
                 # rerun all script for update
                 st.rerun()
     
