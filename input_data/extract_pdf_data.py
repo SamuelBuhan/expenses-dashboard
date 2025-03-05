@@ -69,7 +69,7 @@ def process_pdf(pdf_path):
             name = row["description"]
             date = row["date"]
             # TODO: extract the type from pdf
-            type = "expenses"
+            type = "expense"
             value = row["amount"]
             dbm.insert_data(name, date, type, value)
 
