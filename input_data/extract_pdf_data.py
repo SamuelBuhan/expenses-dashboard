@@ -2,8 +2,7 @@ import pdfplumber
 import pandas as pd
 import re
 import os
-#import sqlite3
-#from sqlalchemy import create_engine
+import sql.database_management as dbm
 
 # ---------- CONFIGURATIONS ----------
 PDF_FOLDER = "statements"  # Folder containing PDFs
@@ -38,14 +37,8 @@ def parse_transaction(line):
         }
     return None
 
-# def save_to_sql(df, db_name, table_name):
-#     """Saves the DataFrame to an SQL database."""
-#     engine = create_engine(f"sqlite:///{db_name}")  # SQLite connection
-#     df.to_sql(table_name, engine, if_exists="append", index=False)
-#     print(f"✅ Data saved to {db_name} -> Table: {table_name}")
-
 # ---------- MAIN EXECUTION ----------
-def process_pdfs(pdf_folder, db_name, table_name):
+def process_pdfs(pdf_folder, db_name="", table_name=""):
     all_transactions = []
     for pdf_file in os.listdir(pdf_folder):
         if pdf_file.endswith(".pdf"):
@@ -57,7 +50,31 @@ def process_pdfs(pdf_folder, db_name, table_name):
     if all_transactions:
         df = pd.DataFrame(all_transactions)
         print(df)
-        #save_to_sql(df, db_name, table_name)
+
+def process_pdf(pdf_path):
+    all_transactions = []
+    print(f"📄 Processing: {pdf_path}")
+    transactions = extract_transactions(pdf_path)
+    all_transactions.extend(transactions)
+
+    if all_transactions:
+        df = pd.DataFrame(all_transactions)
+        
+        # Display first few rows
+        print(df.head())
+
+        dbm.create_db()
+
+        for index, row in df.iterrows():
+            name = row["description"]
+            date = row["date"]
+            # TODO: extract the type from pdf
+            type = "expenses"
+            value = row["amount"]
+            dbm.insert_data(name, date, type, value)
+
+
+
 
 if __name__ == "__main__":
     process_pdfs("/Users/sbuhan/workspace/projects/python/expenses-dashboard/input_data/test/"
